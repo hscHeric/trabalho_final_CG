@@ -1,60 +1,101 @@
-#include "board.hpp"
-#include "game.hpp"
-#include "game_term_view.hpp"
+#include "camera.hpp"
 
-#include <iostream>
+#include <GL/glut.h>
 
-void play_game() {
-  std::string player_one_name, player_two_name;
+Camera camera;
 
-  std::cout << "Enter Player 1 name: ";
-  std::getline( std::cin, player_one_name );
-  if ( player_one_name.empty() )
-    player_one_name = "Player 1";
-
-  std::cout << "Enter Player 2 name: ";
-  std::getline( std::cin, player_two_name );
-  if ( player_two_name.empty() )
-    player_two_name = "Player 2";
-
-  game game_state( player_one_name, player_two_name );
-  game_state.start_game();
-
-  while ( !game_state.is_game_over() ) {
-    game_term_view::display_game_state( game_state );
-
-    int row, col;
-    std::cout << "Enter row and column to fire (e.g., 3 4): ";
-    std::cin >> row >> col;
-
-    if ( row < 0 || row >= board::get_size() || col < 0 || col >= board::get_size() ) {
-      std::cout << "Invalid coordinates. Try again." << std::endl;
-      continue;
-    }
-
-    bool hit = game_state.make_move( row, col );
-
-    if ( hit ) {
-      std::cout << "HIT!" << std::endl;
-    } else {
-      std::cout << "MISS!" << std::endl;
-    }
-  }
-
-  game_term_view::display_game_over( game_state );
+void init() {
+  glEnable( GL_DEPTH_TEST );
+  glClearColor( 0.5f, 0.8f, 1.0f, 1.0f );  // Céu azul claro
 }
 
-int main() {
-  int choice = 0;
-  do {
-    game_term_view::display_game_menu();
-    std::cin >> choice;
-    std::cin.ignore();
+void drawGrid( float size, int divisions ) {
+  float step = size / divisions;
+  float half = size / 2.0f;
 
-    switch ( choice ) {
-      case 1 : play_game(); break;
-      case 2 : std::cout << "Thanks for playing!" << std::endl; break;
-      default: std::cout << "Invalid choice. Please try again." << std::endl;
-    }
-  } while ( choice != 2 );
+  glColor3f( 0.7f, 0.7f, 0.7f );  // Cinza claro
+
+  glBegin( GL_LINES );
+  for ( int i = 0; i <= divisions; ++i ) {
+    float pos = -half + i * step;
+
+    // Linhas paralelas ao eixo Z
+    glVertex3f( pos, 0, -half );
+    glVertex3f( pos, 0, half );
+
+    // Linhas paralelas ao eixo X
+    glVertex3f( -half, 0, pos );
+    glVertex3f( half, 0, pos );
+  }
+  glEnd();
+}
+
+void drawCubes() {
+  glColor3f( 0.8f, 0.3f, 0.3f );  // Vermelho
+
+  float positions[][3] = {
+    { 5, 1, 5 }, { -5, 1, -5 }, { 0, 1, 10 }, { -10, 1, 0 }, { 15, 1, -15 }
+  };
+
+  for ( auto & pos : positions ) {
+    glPushMatrix();
+    glTranslatef( pos[0], pos[1], pos[2] );
+    glutSolidCube( 2.0f );
+    glPopMatrix();
+  }
+}
+
+void display() {
+  glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
+  glLoadIdentity();
+
+  camera.applyView();
+
+  drawGrid( 50.0f, 20 );  // chão quadriculado
+  drawCubes();            // obstáculos fixos
+
+  glutSwapBuffers();
+}
+
+void reshape( int w, int h ) {
+  if ( h == 0 )
+    h = 1;
+  float ratio = (float)w / h;
+
+  glViewport( 0, 0, w, h );
+  glMatrixMode( GL_PROJECTION );
+  glLoadIdentity();
+  gluPerspective( 45.0f, ratio, 1.0f, 500.0f );
+  glMatrixMode( GL_MODELVIEW );
+}
+
+void keyboard( unsigned char key, int x, int y ) {
+  switch ( key ) {
+    case 'w': camera.moveForward( 1.0f ); break;
+    case 's': camera.moveBackward( 1.0f ); break;
+    case 'a': camera.moveLeft( 1.0f ); break;
+    case 'd': camera.moveRight( 1.0f ); break;
+    case 'q': camera.rotateY( -5.0f ); break;
+    case 'e': camera.rotateY( 5.0f ); break;
+    case 'r': camera.moveForward( 0.5f ); break;   // Suavização
+    case 'f': camera.moveBackward( 0.5f ); break;  // Suavização
+    case 27 : exit( 0 );                            // ESC
+  }
+  glutPostRedisplay();
+}
+
+int main( int argc, char ** argv ) {
+  glutInit( &argc, argv );
+  glutInitDisplayMode( GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH );
+  glutInitWindowSize( 1000, 600 );
+  glutCreateWindow( "Cidade Interativa - Movimentação com Câmera" );
+
+  init();
+
+  glutDisplayFunc( display );
+  glutReshapeFunc( reshape );
+  glutKeyboardFunc( keyboard );
+
+  glutMainLoop();
+  return 0;
 }
